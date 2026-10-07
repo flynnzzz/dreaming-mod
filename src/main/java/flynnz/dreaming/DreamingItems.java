@@ -7,6 +7,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 import java.util.function.Function;
 
@@ -33,6 +34,12 @@ public class DreamingItems {
     public static final Item WAND_ITEM = register(
             DreamingItemIds.WAND_ITEM,
             WandItem::new,
-            new Item.Properties().stacksTo(1)
+            new Item.Properties()
+                    .stacksTo(1)
+                    .durability(256)
+                    .fireResistant()
+                    .enchantable(32)
+                    .useCooldown(0.5f)
+                    .repairable(Items.BLAZE_POWDER)
     );
 }

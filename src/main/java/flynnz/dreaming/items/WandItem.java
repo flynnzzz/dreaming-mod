@@ -17,7 +17,9 @@ import org.jspecify.annotations.NonNull;
 
 public class WandItem extends Item {
     public static final int MAX_CHARGE_DURATION = 20;
-    public static final int NO_CHARGE_LIMIT = 5;
+    public static final int MAX_CLICK_DURATION = 5;
+    public static final int MIN_POWER_LEVEL = 1;
+    public static final int MAX_POWER_LEVEL = 3;
 
     public WandItem(final Properties properties) {
         super(properties);
@@ -43,7 +45,12 @@ public class WandItem extends Item {
 
     public static float getPowerForTime(final int timeHeld) {
         float pow = timeHeld / (float) MAX_CHARGE_DURATION;
-        return pow * 1.5f;
+        pow *= MAX_POWER_LEVEL;
+        if (pow < MIN_POWER_LEVEL)
+            pow = MIN_POWER_LEVEL;
+        if (pow > MAX_POWER_LEVEL)
+            pow = MAX_POWER_LEVEL;
+        return pow;
     }
 
     @Override
@@ -57,9 +64,21 @@ public class WandItem extends Item {
 
             if (level instanceof ServerLevel serverLevel) {
 
-                var fireball = timeHeld > NO_CHARGE_LIMIT ?
+                var fireball = timeHeld > MAX_CLICK_DURATION ?
                         createLargeFireball(level, player, (int) pow) :
                         createSmallFireball(level, player);
+
+                var spellChargeSound = timeHeld < MAX_CLICK_DURATION ? SoundEvents.BEACON_POWER_SELECT : SoundEvents.BEACON_ACTIVATE;
+                level.playSound(
+                        null,
+                        player.getX(),
+                        player.getY(),
+                        player.getZ(),
+                        spellChargeSound,
+                        SoundSource.PLAYERS,
+                        1.0F,
+                        1.0F / (level.getRandom().nextFloat() * 0.4F + 1.2F) + pow * 0.5F
+                );
 
                 shootFireball(serverLevel, fireball, player);
                 itemStack.hurtAndBreak(1, player, player.getUsedItemHand());
@@ -82,18 +101,19 @@ public class WandItem extends Item {
         }
     }
 
-    private SmallFireball createSmallFireball(Level level, LivingEntity shooter) {
+    private SmallFireball createSmallFireball(final Level level, final LivingEntity shooter) {
         var direction = shooter.getViewVector(1.0f).scale(2);
-        return new SmallFireball(level, shooter, direction);
+        var fireball = new SmallFireball(level, shooter, direction);
+        fireball.addDeltaMovement(direction);
+        return fireball;
     }
 
-    private LargeFireball createLargeFireball(Level level, LivingEntity shooter, int explosionPower) {
-        explosionPower = explosionPower == 0 ? 1 : explosionPower;
+    private LargeFireball createLargeFireball(final Level level, final LivingEntity shooter, final int explosionPower) {
         var direction = shooter.getViewVector(1.0f).scale(2 * explosionPower);
         return new LargeFireball(level, shooter, direction, explosionPower);
     }
 
-    private void shootFireball(Level level, Fireball fireball, LivingEntity shooter) {
+    private void shootFireball(final Level level, final Fireball fireball, final LivingEntity shooter) {
         var look = shooter.getViewVector(1.0f);
         fireball.setPos(
                 shooter.getX() + look.x * 0.5,

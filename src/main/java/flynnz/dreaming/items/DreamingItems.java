@@ -1,6 +1,5 @@
-package flynnz.dreaming;
+package flynnz.dreaming.items;
 
-import flynnz.dreaming.items.WandItem;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;

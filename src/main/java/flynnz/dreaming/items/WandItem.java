@@ -8,48 +8,20 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.hurtingprojectile.Fireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.item.*;
 import net.minecraft.world.level.Level;
 import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 
-import java.util.function.Predicate;
-
-public class WandItem extends ProjectileWeaponItem {
+public class WandItem extends Item {
     public static final int MAX_CHARGE_DURATION = 20;
     public static final int NO_CHARGE_LIMIT = 5;
-    public static final int DEFAULT_RANGE = 25;
-
-    protected static final Predicate<ItemStack> NO_PROJECTILES = _ -> false;
 
     public WandItem(final Properties properties) {
         super(properties);
     }
-
-    @Override
-    public @NonNull Predicate<ItemStack> getAllSupportedProjectiles() {
-        return NO_PROJECTILES;
-    }
-
-    @Override
-    public int getDefaultProjectileRange() {
-        return DEFAULT_RANGE;
-    }
-
-    @Override
-    protected void shootProjectile(
-            final @NonNull LivingEntity shooter,
-            final @NonNull Projectile projectileEntity,
-            final int index,
-            final float power,
-            final float uncertainty,
-            final float angle,
-            final @Nullable LivingEntity targetOverride
-    ) {}
 
     @Override
     public int getUseDuration(final @NonNull ItemStack itemStack, final @NonNull LivingEntity user) {
@@ -58,7 +30,7 @@ public class WandItem extends ProjectileWeaponItem {
 
     @Override
     public @NonNull ItemUseAnimation getUseAnimation(final @NonNull ItemStack itemStack) {
-        return ItemUseAnimation.BRUSH;
+        return ItemUseAnimation.SPYGLASS;
     }
 
     public @NonNull InteractionResult use(final @NonNull Level level, final @NonNull Player player, final @NonNull InteractionHand hand) {

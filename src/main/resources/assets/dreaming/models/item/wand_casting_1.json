@@ -1,0 +1,6 @@
+{
+  "parent": "dreaming:item/wand",
+  "textures": {
+    "layer0": "dreaming:item/wand_casting_1"
+  }
+}

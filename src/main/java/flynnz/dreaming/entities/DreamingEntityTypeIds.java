@@ -1,4 +1,4 @@
-package flynnz.dreaming.mobs;
+package flynnz.dreaming.entities;
 
 import flynnz.dreaming.Dreaming;
 import net.minecraft.core.registries.Registries;

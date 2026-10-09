@@ -1,7 +1,7 @@
 package flynnz.dreaming;
 
 import flynnz.dreaming.items.DreamingItems;
-import flynnz.dreaming.mobs.DreamingEntityTypes;
+import flynnz.dreaming.entities.DreamingEntityTypes;
 import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.resources.Identifier;
@@ -24,7 +24,7 @@ public class Dreaming implements ModInitializer {
 		// Proceed with mild caution.
 
 		DreamingItems.initialize();
-		DreamingEntityTypes.registerModEntityTypes();
+		DreamingEntityTypes.initialize();
 	}
 
 	public static Identifier id(String path) {

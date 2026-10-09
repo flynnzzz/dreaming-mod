@@ -1,10 +1,11 @@
-package flynnz.dreaming.client.entities.wizard;
+package flynnz.dreaming.client.entities;
 
 import flynnz.dreaming.Dreaming;
+import flynnz.dreaming.client.entities.wizard.WizardModel;
 import net.fabricmc.fabric.api.client.rendering.v1.ModelLayerRegistry;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 
-public class WizardModelLayers {
+public class DreamingEntitiesModelLayers {
         public static final ModelLayerLocation WIZARD = createMain("wizard");
 
         private static ModelLayerLocation createMain(String name) {
@@ -12,6 +13,6 @@ public class WizardModelLayers {
         }
 
         public static void registerModelLayers() {
-            ModelLayerRegistry.registerModelLayer(WizardModelLayers.WIZARD, WizardModel::getTexturedModelData);
+            ModelLayerRegistry.registerModelLayer(DreamingEntitiesModelLayers.WIZARD, WizardModel::getTexturedModelData);
         }
 }

@@ -14,7 +14,7 @@ public class DreamingEntityTypes {
     public static final EntityType<Wizard> WIZARD = register(
             DreamingEntityTypeIds.WIZARD,
             EntityType.Builder.<Wizard>of(Wizard::new, MobCategory.MISC)
-                    .sized(0.5f, 1.8f)
+                    .sized(0.6f, 1.95f)
     );
 
     private static <T extends Entity> EntityType<T> register(

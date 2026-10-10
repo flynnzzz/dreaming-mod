@@ -22,11 +22,11 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.ResetUniversalAngerTargetGoal;
 import net.minecraft.world.entity.monster.RangedAttackMob;
-import net.minecraft.world.entity.monster.illager.AbstractIllager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.hurtingprojectile.Fireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
+import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
@@ -74,7 +74,11 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
         goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 6.0F));
         goalSelector.addGoal(4, new RandomLookAroundGoal(this));
         targetSelector.addGoal(2, new HurtByTargetGoal(this));
-        targetSelector.addGoal(1, new NearestAttackableTargetGoal<>(this, Mob.class, 10, true, false, (target, _) -> target instanceof AbstractIllager));
+        targetSelector.addGoal(
+                1, new NearestAttackableTargetGoal<>(
+                        this, Mob.class, 10, true, false,
+                        (target, _) -> target instanceof Raider)
+        );
         targetSelector.addGoal(4, new ResetUniversalAngerTargetGoal<>(this, false));
     }
 

@@ -102,7 +102,7 @@ public class WandItem extends Item {
     }
 
     private SmallFireball createSmallFireball(final Level level, final LivingEntity shooter) {
-        var direction = shooter.getViewVector(1.0f).scale(2);
+        var direction = shooter.getViewVector(1.0f);
         var fireball = new SmallFireball(level, shooter, direction);
         fireball.addDeltaMovement(direction);
         return fireball;

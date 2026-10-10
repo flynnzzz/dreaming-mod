@@ -6,6 +6,7 @@ import net.minecraft.world.entity.HumanoidArm;
 
 public class WizardRenderState extends HumanoidRenderState {
     public boolean isHoldingItem;
+    public boolean isCastingSpell;
     public Wizard.WizardArmPose armPose = Wizard.WizardArmPose.CROSSED;
     public HumanoidArm mainArm = HumanoidArm.RIGHT;
 }

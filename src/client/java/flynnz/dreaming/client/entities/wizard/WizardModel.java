@@ -113,7 +113,7 @@ public class WizardModel
         this.leftLeg.zRot = 0.0F;
 
         Wizard.WizardArmPose pose = state.armPose;
-        if (pose == Wizard.WizardArmPose.ATTACKING) {
+        if (pose == Wizard.WizardArmPose.SPELLCASTING) {
             AnimationUtils.swingWeaponDown(this.rightArm, this.leftArm, state.mainArm, state.swingAnimation, state.ageInTicks);
         }
 

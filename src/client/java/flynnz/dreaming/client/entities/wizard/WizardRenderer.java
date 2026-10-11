@@ -25,9 +25,6 @@ public class WizardRenderer extends MobRenderer<Wizard, WizardRenderState, Wizar
     public void extractRenderState(final @NonNull Wizard entity, final @NonNull WizardRenderState state, final float partialTicks) {
         super.extractRenderState(entity, state, partialTicks);
         ArmedEntityRenderState.extractArmedEntityRenderState(entity, state, this.itemModelResolver, partialTicks);
-        ItemStack mainHandItem = entity.getMainHandItem();
-        state.isHoldingItem = !mainHandItem.isEmpty();
-        state.isCastingSpell = entity.isCastingSpell();
         state.mainArm = entity.getMainArm();
         state.ticksUsingItem = entity.getTicksUsingItem(partialTicks);
         state.armPose = entity.getArmPose();

@@ -1,5 +1,6 @@
 package flynnz.dreaming.entities.wizard;
 
+import flynnz.dreaming.Dreaming;
 import flynnz.dreaming.entities.DreamingEntityTypes;
 import flynnz.dreaming.items.DreamingItems;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -35,18 +36,23 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Objects;
+
 public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob {
     private final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
-    private final int MAX_CHARGING_TIME = 20 * 3;
+    private final int MAX_CHARGING_TIME = 20 * 2;
     private final int MAX_CASTING_TIME = 20 * 2;
+    private final int MAX_SHOOTING_TIME = 20;
     private long persistentAngerEndTime = 0L;
 
-    private static final EntityDataAccessor<Integer> DATA_ARM_POSE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> RENDER_STATE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CHARGING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CASTING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
-    private static final EntityDataAccessor<Boolean> IS_CASTING_SPELL = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<Boolean> SHOULD_SHOOT_LARGE_FIREBALL = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> SHOOTING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private EntityReference<LivingEntity> persistentAngerTarget;
+    private boolean isCharged;
+
+    private static final EntityDataAccessor<Integer> STATE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
 
 
     public Wizard(Level level) {
@@ -66,11 +72,12 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     @Override
     protected void defineSynchedData(SynchedEntityData.@NonNull Builder builder) {
         super.defineSynchedData(builder);
-        builder.define(DATA_ARM_POSE, WizardArmPose.CROSSED.ordinal());
+        builder.define(RENDER_STATE, WizardArmPose.CROSSED.ordinal());
         builder.define(CHARGING_TIME, MAX_CHARGING_TIME);
         builder.define(CASTING_TIME, MAX_CASTING_TIME);
-        builder.define(IS_CASTING_SPELL, false);
-        builder.define(SHOULD_SHOOT_LARGE_FIREBALL, false);
+        builder.define(SHOOTING_TIME, MAX_SHOOTING_TIME);
+
+        builder.define(STATE, WizardState.IDLE.ordinal());
     }
 
     @Override
@@ -109,9 +116,9 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
             }
 
             if (this.getHealth() < 10) {
-                this.setIsCastingSpell(true);
                 this.heal(4);
                 this.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 20 * 10));
+                setWizardState(WizardState.CASTING_BUFFS);
             }
         }
 
@@ -121,53 +128,84 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     @Override
     public void aiStep() {
         super.aiStep();
-        if (this.level() instanceof ServerLevel serverLevel) {
-            this.updateArmPose();
-            this.updatePersistentAnger(serverLevel, true);
-            if (this.isAngry() && this.shouldShootLargeFireball()) {
-                tickChargeTime();
-            }
-            if (this.isCastingSpell()) {
-                tickCastTime();
-            }
-            if (this.getCastingTime() == 0) {
-                this.setIsCastingSpell(false);
-                resetCastingTime();
-            }
-        }
-    }
-
-    // TODO: refactor into a proper state machine
-    @Override
-    public void performRangedAttack(final @NonNull LivingEntity target, final float power) {
-        if (!(this.level() instanceof ServerLevel)) {
+        if (!(this.level() instanceof ServerLevel serverLevel)) {
             return;
         }
-        final double xd = target.getX() - this.getX();
-        final double yd = target.getY() - this.getY();
-        final double zd = target.getZ() - this.getZ();
-        final var direction = new Vec3(xd, yd, zd);
 
-        if (!this.shouldShootLargeFireball() && !this.isCastingSpell()) {
-            final var randomPick = this.getRandom().nextInt(6);
-            this.setShouldShootLargeFireball(randomPick > 3);
-
-            final var fireball = new SmallFireball(level(), this, direction);
-            fireball.addDeltaMovement(direction.scale(0.3f));
-            this.shootFireBall(fireball, direction);
-        }
-        else if (this.shouldShootLargeFireball() && this.getChargingTime() == 0) {
-                this.resetChargingTime();
-                this.shootFireBall(new LargeFireball(level(), this, direction, 1), direction);
-                this.setIsCastingSpell(false);
-                this.setShouldShootLargeFireball(false);
+        Dreaming.LOGGER.debug("Wizard state: {}", getWizardState());
+        switch (getWizardState()) {
+            case IDLE -> setWizardState(this.getTarget() != null ? WizardState.ANGRY : WizardState.IDLE);
+            case ANGRY -> {
+                if (this.getTarget() == null) {
+                    setWizardState(WizardState.IDLE);
+                    break;
+                }
+                var shouldCharge = this.getRandom().nextInt(6) > 3;
+                setWizardState(shouldCharge ? WizardState.CHARGING_MAGIC : WizardState.SHOOTING_MAGIC);
             }
-        else if (this.shouldShootLargeFireball() && this.getChargingTime() != 0){
-            this.setIsCastingSpell(true);
+            case CHARGING_MAGIC -> {
+                tickChargeTime();
+                if (getChargingTime() == 0) {
+                    this.setIsCharged(true);
+                    resetChargingTime();
+                    setWizardState(WizardState.SHOOTING_MAGIC);
+                }
+            }
+            case CASTING_BUFFS -> {
+                tickCastTime();
+                if (getCastingTime() == 0) {
+                    resetCastingTime();
+                    setWizardState(WizardState.ANGRY);
+                }
+            }
+            case SHOOTING_MAGIC -> {
+                tickShootingTime();
+                if (getShootingTime() == 0) {
+                    if (this.getTarget() != null) {
+                        performRangedAttack(getTarget(), 0);
+                    }
+                    resetShootingTIme();
+                    setWizardState(WizardState.ANGRY);
+                }
+            }
+            default -> {
+                Dreaming.LOGGER.debug("Impossible state: {}", getWizardState());
+            }
         }
+
+        this.updatePersistentAnger(serverLevel, true);
+        this.updateArmPose();
     }
 
-    private void shootFireBall(Fireball fireball, Vec3 position) {
+    @Override
+    public void performRangedAttack(final @NonNull LivingEntity target, final float power) {
+        if (!(this.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        if (Objects.requireNonNull(getWizardState()) != WizardState.SHOOTING_MAGIC) {
+            return;
+        }
+        if (getShootingTime() != 0) {
+            return;
+        }
+
+        double xd = target.getX() - this.getX();
+        double yd = target.getY() - this.getY();
+        double zd = target.getZ() - this.getZ();
+        var direction = new Vec3(xd, yd, zd);
+
+        Fireball fireball;
+        if (!this.isCharged()) {
+            fireball = new SmallFireball(serverLevel, this, direction);
+            fireball.addDeltaMovement(direction.scale(0.3f));
+        } else {
+            fireball = new LargeFireball(serverLevel, this, direction, 1);
+            this.setIsCharged(false);
+        }
+        shootFireBall(fireball, direction);
+    }
+
+    private void shootFireBall(final Fireball fireball, final Vec3 position) {
         this.playSound(SoundEvents.FIRECHARGE_USE, 1.0F, 1.0F / (this.getRandom().nextFloat() * 0.4F + 0.8F));
         fireball.setPos(
                 this.getX() + position.x * 0.5,
@@ -178,28 +216,15 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     }
 
     private void updateArmPose() {
-        WizardArmPose desired;
-
-        if (this.isCastingSpell()){
-            desired = WizardArmPose.SPELLCASTING;
-        }
-        else if (this.isAngry()) {
-            desired = WizardArmPose.NEUTRAL;
-        } else {
-            this.resetChargingTime();
-            desired = WizardArmPose.CROSSED;
-        }
-        if (getArmPose() != desired) {
-            setArmPose(desired);
-        }
+        this.setArmPose(getWizardState().pose());
     }
 
-    public void setIsCastingSpell(boolean isCastingSpell) {
-        this.entityData.set(IS_CASTING_SPELL, isCastingSpell);
+    private void setWizardState(WizardState state) {
+        this.entityData.set(STATE, state.ordinal());
     }
 
-    public boolean isCastingSpell() {
-        return this.entityData.get(IS_CASTING_SPELL);
+    private WizardState getWizardState() {
+        return WizardState.values()[this.entityData.get(STATE)];
     }
 
     public void tickCastTime() {
@@ -210,23 +235,11 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     }
 
     public void resetCastingTime() {
-        this.setCastingTime(MAX_CASTING_TIME);
-    }
-
-    public void setCastingTime(int castingTime) {
-        this.entityData.set(CASTING_TIME, castingTime);
+        this.entityData.set(CASTING_TIME, MAX_CASTING_TIME);
     }
 
     public int getCastingTime() {
         return this.entityData.get(CASTING_TIME);
-    }
-
-    public void setShouldShootLargeFireball(boolean should) {
-        this.entityData.set(SHOULD_SHOOT_LARGE_FIREBALL, should);
-    }
-
-    public boolean shouldShootLargeFireball() {
-        return this.entityData.get(SHOULD_SHOOT_LARGE_FIREBALL);
     }
 
     public void tickChargeTime() {
@@ -244,17 +257,35 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
         return this.entityData.get(CHARGING_TIME);
     }
 
+    public void tickShootingTime() {
+        final int oldShootingTime = this.getShootingTime();
+        if (oldShootingTime != 0) {
+            this.entityData.set(SHOOTING_TIME, oldShootingTime - 1);
+        }
+    }
+
+    public void resetShootingTIme() {
+        this.entityData.set(SHOOTING_TIME, MAX_SHOOTING_TIME);
+    }
+
+    public int getShootingTime() {
+        return this.entityData.get(SHOOTING_TIME);
+    }
+
     public void setArmPose(WizardArmPose pose) {
-        this.entityData.set(DATA_ARM_POSE, pose.ordinal());
+        this.entityData.set(RENDER_STATE, pose.ordinal());
     }
 
     public WizardArmPose getArmPose() {
-        return WizardArmPose.values()[entityData.get(DATA_ARM_POSE)];
+        return WizardArmPose.values()[entityData.get(RENDER_STATE)];
     }
 
-    @Override
-    public boolean canAttack(final LivingEntity target) {
-        return target.is(EntityTypes.CREEPER) ? false : super.canAttack(target);
+    public boolean isCharged() {
+        return this.isCharged;
+    }
+
+    public void setIsCharged(boolean isCharged) {
+        this.isCharged = isCharged;
     }
 
     @Override
@@ -292,9 +323,32 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
         return SoundEvents.VILLAGER_DEATH;
     }
 
+    @Override
+    public boolean canAttack(final LivingEntity target) {
+        return target.is(EntityTypes.CREEPER) ? false : super.canAttack(target);
+    }
+
+    private enum WizardState {
+        IDLE(WizardArmPose.CROSSED),
+        ANGRY(WizardArmPose.NEUTRAL),
+        CASTING_BUFFS(WizardArmPose.SPELLCASTING),
+        CHARGING_MAGIC(WizardArmPose.SPELLCASTING),
+        SHOOTING_MAGIC(WizardArmPose.SHOOTING);
+
+        private final WizardArmPose pose;
+        WizardState(WizardArmPose pose) {
+           this.pose = pose;
+        }
+
+        public WizardArmPose pose() {
+            return this.pose;
+        }
+    }
+
     public enum WizardArmPose {
         CROSSED,
+        NEUTRAL,
         SPELLCASTING,
-        NEUTRAL;
+        SHOOTING
     }
 }

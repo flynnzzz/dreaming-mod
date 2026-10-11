@@ -14,6 +14,7 @@ import net.minecraft.util.TimeUtil;
 import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
@@ -24,21 +25,26 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.ResetUniversalAngerTargetGoal;
 import net.minecraft.world.entity.monster.RangedAttackMob;
+import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.hurtingprojectile.Fireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.util.EnumSet;
 import java.util.Objects;
 
-public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob {
+public class Wizard extends AbstractVillager implements NeutralMob, RangedAttackMob {
     private final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
     public static final int MAX_CHARGING_TIME = 20 * 2;
     public static final int MAX_DELAY_TIME = 20;
@@ -64,8 +70,7 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
 
     public static AttributeSupplier.Builder createWizardAttributes() {
         return PathfinderMob.createMobAttributes()
-                .add(Attributes.MAX_HEALTH, 20)
-                .add(Attributes.TEMPT_RANGE, 10)
+                .add(Attributes.MAX_HEALTH, 32)
                 .add(Attributes.MOVEMENT_SPEED, 0.3);
     }
 
@@ -81,15 +86,24 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     }
 
     @Override
+    protected void rewardTradeXp(@Nullable MerchantOffer offer) {
+
+    }
+
+    @Override
+    protected void updateTrades(@Nullable ServerLevel level) {
+
+    }
+
+    @Override
     protected void registerGoals() {
-        goalSelector.addGoal(1, new RangedAttackGoal(this, 1.25, 20, 10.0F));
-        goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 6.0F));
-        goalSelector.addGoal(4, new RandomLookAroundGoal(this));
-        targetSelector.addGoal(2, new HurtByTargetGoal(this));
-        targetSelector.addGoal(
-                1, new NearestAttackableTargetGoal<>( this, Mob.class, 10, true, false, (target, _) -> target instanceof Raider)
-        );
-        targetSelector.addGoal(4, new ResetUniversalAngerTargetGoal<>(this, false));
+        goalSelector.addGoal(1, new WizardAttackGoal<>(this, 1.25, 20, 40.0F));
+        goalSelector.addGoal(2, new RandomLookAroundGoal(this));
+        goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
+        goalSelector.addGoal(4, new LookAtPlayerGoal(this, Mob.class, 8.0F));
+        targetSelector.addGoal(1, new HurtByTargetGoal(this));
+        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>( this, Mob.class, 10, true, false, (target, _) -> target instanceof Raider));
+        targetSelector.addGoal(3, new ResetUniversalAngerTargetGoal<>(this, false));
     }
 
     @Override
@@ -105,6 +119,11 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     }
 
     @Override
+    public @Nullable AgeableMob getBreedOffspring(ServerLevel level, AgeableMob partner) {
+        return null;
+    }
+
+    @Override
     public boolean hurtServer(final @NonNull ServerLevel level, final @NonNull DamageSource source, final float damage) {
         boolean wasHurt = super.hurtServer(level, source, damage);
         if (wasHurt) {
@@ -116,8 +135,19 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
             }
 
             if (this.getHealth() < 10) {
-                this.heal(4);
-                this.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 20 * 10));
+                this.addEffect(new MobEffectInstance(MobEffects.INSTANT_HEALTH, 5 ));
+                this.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 20 * 10, 1));
+                this.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 20 * 10, 2));
+                this.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 20 * 10, 3));
+                this.addEffect(new MobEffectInstance(MobEffects.SPEED, 20 * 10 ));
+                setWizardState(WizardState.CASTING_BUFFS);
+            }
+            else if (this.getHealth() < 5) {
+                this.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, 20 * 20 ));
+                setWizardState(WizardState.CASTING_BUFFS);
+            }
+            else if (source.is(DamageTypes.ON_FIRE) || source.is(DamageTypes.IN_FIRE)){
+                this.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 20 * 10));
                 setWizardState(WizardState.CASTING_BUFFS);
             }
         }
@@ -192,6 +222,7 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
             return;
         }
 
+        // TODO: improve aim
         double xd = target.getX() - this.getX();
         double yd = target.getY() - this.getY();
         double zd = target.getZ() - this.getZ();
@@ -368,5 +399,134 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
         NEUTRAL,
         SPELLCASTING,
         SHOOTING
+    }
+
+    private static class WizardAttackGoal<T extends PathfinderMob & RangedAttackMob> extends Goal {
+        private final T mob;
+        private final double speedModifier;
+        private final int attackIntervalMin;
+        private final float attackRadiusSqr;
+        private int attackTime = -1;
+        private int seeTime;
+        private boolean strafingClockwise;
+        private boolean strafingBackwards;
+        private int strafingTime = -1;
+
+        public WizardAttackGoal(final T mob, final double speedModifier, final int attackIntervalMin, final float attackRadius) {
+            this.mob = mob;
+            this.speedModifier = speedModifier;
+            this.attackIntervalMin = attackIntervalMin;
+            this.attackRadiusSqr = attackRadius * attackRadius;
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            return mob.getTarget() != null;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return canUse();
+        }
+
+        @Override
+        public void start() {
+            super.start();
+        }
+
+        @Override
+        public void stop() {
+            super.stop();
+            this.seeTime = 0;
+            this.attackTime = -1;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            LivingEntity target = this.mob.getTarget();
+            if (target != null) {
+                double targetDistSqr = this.mob.distanceToSqr(target.getX(), target.getY(), target.getZ());
+                boolean hasLineOfSight = this.mob.getSensing().hasLineOfSight(target);
+                boolean hadLineOfSight = this.seeTime > 0;
+                if (hasLineOfSight != hadLineOfSight) {
+                    this.seeTime = 0;
+                }
+
+                if (hasLineOfSight) {
+                    this.seeTime++;
+                } else {
+                    this.seeTime--;
+                }
+
+                final double attackDistance = 64.0;
+                if (targetDistSqr < attackDistance && this.seeTime >= 20) {
+                    // TODO: improve
+                    double dx = this.mob.getX() - target.getX();
+                    double dz = this.mob.getZ() - target.getZ();
+                    double length = Math.sqrt(dx * dx + dz * dz);
+
+                    if (length > 0) {
+                        double retreatDistance = 6.0;
+                        double retreatX = this.mob.getX() + dx / length * retreatDistance;
+                        double retreatZ = this.mob.getZ() + dz / length * retreatDistance;
+                        this.mob.getNavigation().moveTo(retreatX, this.mob.getY(), retreatZ, this.speedModifier);
+                        this.mob.lookAt(target, 30.0f, 30.0f);
+                    }
+                    this.strafingTime = -1;
+                }
+                else {
+                    this.mob.getNavigation().stop();
+                    this.strafingTime++;
+                }
+
+                if (this.strafingTime >= 20) {
+                    if (this.mob.getRandom().nextFloat() < 0.3) {
+                        this.strafingClockwise = !this.strafingClockwise;
+                    }
+
+                    if (this.mob.getRandom().nextFloat() < 0.3) {
+                        this.strafingBackwards = !this.strafingBackwards;
+                    }
+
+                    this.strafingTime = 0;
+                }
+
+                if (this.strafingTime > -1) {
+                    if (targetDistSqr < this.attackRadiusSqr * 0.25F) {
+                        this.strafingBackwards = true;
+                    }
+
+                    this.mob.getMoveControl().strafe(this.strafingBackwards ? -0.5F : 0.5F, this.strafingClockwise ? 0.5F : -0.5F);
+                    if (this.mob.getControlledVehicle() instanceof Mob vehicle) {
+                        vehicle.lookAt(target, 30.0F, 30.0F);
+                    }
+
+                    this.mob.lookAt(target, 30.0F, 30.0F);
+                } else {
+                    this.mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
+                }
+
+                if (this.mob.isUsingItem()) {
+                    if (!hasLineOfSight && this.seeTime < -60) {
+                        this.mob.stopUsingItem();
+                    } else if (hasLineOfSight) {
+                        int pullTime = this.mob.getTicksUsingItem();
+                        if (pullTime >= 20) {
+                            this.mob.stopUsingItem();
+                            this.mob.performRangedAttack(target, BowItem.getPowerForTime(pullTime));
+                            this.attackTime = this.attackIntervalMin;
+                        }
+                    }
+                } else if (--this.attackTime <= 0 && this.seeTime >= -60) {
+                    this.mob.startUsingItem(ProjectileUtil.getWeaponHoldingHand(this.mob, DreamingItems.WAND_ITEM));
+                }
+            }
+        }
     }
 }

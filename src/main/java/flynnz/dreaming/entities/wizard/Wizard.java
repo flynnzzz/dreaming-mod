@@ -40,20 +40,20 @@ import java.util.Objects;
 
 public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob {
     private final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
-    private final int MAX_CHARGING_TIME = 20 * 2;
-    private final int MAX_CASTING_TIME = 20 * 2;
-    private final int MAX_SHOOTING_TIME = 20;
+    public static final int MAX_CHARGING_TIME = 20 * 2;
+    public static final int MAX_DELAY_TIME = 20;
+    public static final int MAX_CASTING_TIME = 20 * 2;
+    public static final int MAX_SHOOTING_TIME = 20;
     private long persistentAngerEndTime = 0L;
+    private boolean isCharged;
+    private EntityReference<LivingEntity> persistentAngerTarget;
 
     private static final EntityDataAccessor<Integer> RENDER_STATE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> STATE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> ATTACK_DELAY_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CHARGING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> CASTING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> SHOOTING_TIME = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
-    private EntityReference<LivingEntity> persistentAngerTarget;
-    private boolean isCharged;
-
-    private static final EntityDataAccessor<Integer> STATE = SynchedEntityData.defineId(Wizard.class, EntityDataSerializers.INT);
-
 
     public Wizard(Level level) {
         super(DreamingEntityTypes.WIZARD, level);
@@ -73,11 +73,11 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
     protected void defineSynchedData(SynchedEntityData.@NonNull Builder builder) {
         super.defineSynchedData(builder);
         builder.define(RENDER_STATE, WizardArmPose.CROSSED.ordinal());
+        builder.define(STATE, WizardState.IDLE.ordinal());
         builder.define(CHARGING_TIME, MAX_CHARGING_TIME);
         builder.define(CASTING_TIME, MAX_CASTING_TIME);
         builder.define(SHOOTING_TIME, MAX_SHOOTING_TIME);
-
-        builder.define(STATE, WizardState.IDLE.ordinal());
+        builder.define(ATTACK_DELAY_TIME, MAX_DELAY_TIME);
     }
 
     @Override
@@ -132,7 +132,6 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
             return;
         }
 
-        Dreaming.LOGGER.debug("Wizard state: {}", getWizardState());
         switch (getWizardState()) {
             case IDLE -> setWizardState(this.getTarget() != null ? WizardState.ANGRY : WizardState.IDLE);
             case ANGRY -> {
@@ -140,8 +139,12 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
                     setWizardState(WizardState.IDLE);
                     break;
                 }
-                var shouldCharge = this.getRandom().nextInt(6) > 3;
-                setWizardState(shouldCharge ? WizardState.CHARGING_MAGIC : WizardState.SHOOTING_MAGIC);
+                tickDelayTime();
+                if (getDelayTime() == 0) {
+                    resetDelayTime();
+                    var shouldCharge = this.getRandom().nextInt(6) > 3;
+                    setWizardState(shouldCharge ? WizardState.CHARGING_MAGIC : WizardState.SHOOTING_MAGIC);
+                }
             }
             case CHARGING_MAGIC -> {
                 tickChargeTime();
@@ -225,6 +228,21 @@ public class Wizard extends PathfinderMob implements NeutralMob, RangedAttackMob
 
     private WizardState getWizardState() {
         return WizardState.values()[this.entityData.get(STATE)];
+    }
+
+    public void tickDelayTime() {
+        final int oldDelayTime = this.getDelayTime();
+        if (oldDelayTime != 0) {
+            this.entityData.set(ATTACK_DELAY_TIME, oldDelayTime - 1);
+        }
+    }
+
+    public void resetDelayTime() {
+        this.entityData.set(ATTACK_DELAY_TIME, MAX_DELAY_TIME);
+    }
+
+    public int getDelayTime() {
+        return this.entityData.get(ATTACK_DELAY_TIME);
     }
 
     public void tickCastTime() {

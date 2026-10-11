@@ -116,6 +116,9 @@ public class WizardModel
         if (pose == Wizard.WizardArmPose.SPELLCASTING) {
             AnimationUtils.swingWeaponDown(this.rightArm, this.leftArm, state.mainArm, state.swingAnimation, state.ageInTicks);
         }
+        else if (pose == Wizard.WizardArmPose.SHOOTING) {
+            AnimationUtils.animateCrossbowCharge(this.rightArm, this.leftArm, Wizard.MAX_SHOOTING_TIME, state.ageInTicks, true);
+        }
 
         boolean crossedArms = pose == Wizard.WizardArmPose.CROSSED;
         this.arms.visible = crossedArms;
